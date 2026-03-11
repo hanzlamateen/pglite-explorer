@@ -1,0 +1,35 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "build",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: build"
+		},
+		{
+			"type": "npm",
+			"script": "pretest",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: pretest"
+		},
+		{
+			"type": "npm",
+			"script": "watch-ext",
+			"isBackground": true,
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: watch-ext"
+		},
+		{
+			"type": "npm",
+			"script": "watch-webview",
+			"isBackground": true,
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: watch-webview"
+		}
+	]
+}

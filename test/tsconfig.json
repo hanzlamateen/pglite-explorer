@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "../out-test",
+    "rootDir": "..",
+    "sourceMap": true,
+    "lib": ["ES2022"]
+  },
+  "include": [
+    "./**/*.ts",
+    "../src/extension/**/*.ts",
+    "../src/shared/**/*.ts"
+  ],
+  "exclude": [
+    "./fixtures/sample-workspace/**"
+  ]
+}

@@ -1,0 +1,216 @@
+{
+  "name": "pglite-explorer",
+  "version": "0.1.0",
+  "displayName": "PGlite Explorer",
+  "description": "Detect and explore PGlite databases in your workspace with a visual GUI for browsing, editing, and querying data",
+  "icon": "docs/logo.png",
+  "galleryBanner": {
+    "color": "#336791",
+    "theme": "dark"
+  },
+  "keywords": [
+    "pglite",
+    "postgres",
+    "postgresql",
+    "database",
+    "explorer",
+    "sql",
+    "crud",
+    "gui",
+    "viewer",
+    "studio"
+  ],
+  "publisher": "EchEmLabs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hanzlamateen/pglite-explorer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hanzlamateen/pglite-explorer/issues"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "activationEvents": [
+    "workspaceContains:**/PG_VERSION",
+    "onView:pgliteExplorerDatabases"
+  ],
+  "main": "./dist/extension.js",
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pgliteExplorer",
+          "title": "PGlite Explorer",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "pgliteExplorer": [
+        {
+          "id": "pgliteExplorerDatabases",
+          "name": "Databases"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "pgliteExplorerDatabases",
+        "contents": "No PGlite databases detected.\n[Add Database](command:pgliteExplorer.addDatabase)\n[Refresh](command:pgliteExplorer.refresh)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "pgliteExplorer.open",
+        "title": "Open PGlite Explorer",
+        "category": "PGlite Explorer",
+        "icon": "$(window)"
+      },
+      {
+        "command": "pgliteExplorer.refresh",
+        "title": "Refresh Databases",
+        "category": "PGlite Explorer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pgliteExplorer.addDatabase",
+        "title": "Add Database Path",
+        "category": "PGlite Explorer",
+        "icon": "$(add)"
+      },
+      {
+        "command": "pgliteExplorer.openTable",
+        "title": "Open Table in Explorer",
+        "category": "PGlite Explorer",
+        "icon": "$(table)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pgliteExplorer.open",
+          "when": "view == pgliteExplorerDatabases",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pgliteExplorer.addDatabase",
+          "when": "view == pgliteExplorerDatabases",
+          "group": "navigation@2"
+        },
+        {
+          "command": "pgliteExplorer.refresh",
+          "when": "view == pgliteExplorerDatabases",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "pgliteExplorer.open",
+          "when": "view == pgliteExplorerDatabases && viewItem == database",
+          "group": "inline"
+        },
+        {
+          "command": "pgliteExplorer.openTable",
+          "when": "view == pgliteExplorerDatabases && viewItem == table",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "PGlite Explorer",
+      "properties": {
+        "pgliteExplorer.databasePaths": {
+          "order": 0,
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Manually configured paths to PGlite database directories."
+        },
+        "pgliteExplorer.autoDetect": {
+          "order": 1,
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan the workspace for PGlite databases (PG_VERSION files)."
+        },
+        "pgliteExplorer.sourceDetect": {
+          "order": 2,
+          "type": "boolean",
+          "default": true,
+          "description": "Parse source files for PGlite constructor paths (e.g. new PGlite('./db'))."
+        },
+        "pgliteExplorer.excludePatterns": {
+          "order": 3,
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**",
+            "**/build/**"
+          ],
+          "description": "Glob patterns to exclude from database scanning."
+        },
+        "pgliteExplorer.pageSize": {
+          "order": 4,
+          "type": "number",
+          "default": 50,
+          "minimum": 10,
+          "maximum": 1000,
+          "description": "Number of rows per page in the data grid."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.0"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.18.0",
+    "@codemirror/commands": "^6.7.0",
+    "@codemirror/lang-sql": "^6.8.0",
+    "@codemirror/language": "^6.10.0",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.35.0",
+    "@tanstack/react-table": "^8.20.0",
+    "@types/mocha": "^10.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/vscode": "^1.75.0",
+    "@vscode/test-electron": "^2.4.0",
+    "@vscode/vsce": "^3.0.0",
+    "codemirror": "^6.0.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.0.0",
+    "mocha": "^10.0.0",
+    "npm-run-all": "^4.1.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "scripts": {
+    "build-webview": "node ./build/esbuild-webview.mjs",
+    "watch-webview": "node ./build/esbuild-webview.mjs --watch",
+    "compile-ext": "node ./build/esbuild-extension.mjs",
+    "watch-ext": "node ./build/esbuild-extension.mjs --watch",
+    "package-ext": "node ./build/esbuild-extension.mjs --production",
+    "build": "npm-run-all package-ext build-webview",
+    "vscode:prepublish": "npm-run-all package-ext build-webview",
+    "lint": "eslint src",
+    "pretest": "npm run compile-ext && npm run compile-tests",
+    "test": "node ./out-test/test/runTests.js",
+    "compile-tests": "tsc -p ./test/tsconfig.json",
+    "seed": "node test/fixtures/seed-databases.mjs"
+  }
+}
