@@ -51,10 +51,13 @@ export class DatabaseDiscovery implements vscode.Disposable {
 		const excludeGlob = `{${excludePatterns.join(',')}}`;
 		const files = await vscode.workspace.findFiles('**/PG_VERSION', excludeGlob, 100);
 
-		for (const file of files) {
-			const dbDir = path.dirname(file.fsPath);
+		const candidateDirs = files.map((f) => path.dirname(f.fsPath));
+		const rootDbs = this.filterSubdirectories(candidateDirs);
+
+		for (const dbDir of rootDbs) {
 			if (!this.databases.has(dbDir)) {
-				const workspaceFolder = vscode.workspace.getWorkspaceFolder(file);
+				const uri = vscode.Uri.file(dbDir);
+				const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
 				const name = workspaceFolder
 					? path.relative(workspaceFolder.uri.fsPath, dbDir)
 					: path.basename(dbDir);
@@ -65,6 +68,20 @@ export class DatabaseDiscovery implements vscode.Disposable {
 				});
 			}
 		}
+	}
+
+	private filterSubdirectories(dirs: string[]): string[] {
+		const sorted = [...dirs].sort((a, b) => a.length - b.length);
+		const roots: string[] = [];
+		for (const dir of sorted) {
+			const isChild = roots.some(
+				(root) => dir.startsWith(root + path.sep)
+			);
+			if (!isChild) {
+				roots.push(dir);
+			}
+		}
+		return roots;
 	}
 
 	private async sourceParse(): Promise<void> {

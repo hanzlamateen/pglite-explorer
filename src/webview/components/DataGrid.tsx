@@ -22,12 +22,6 @@ interface DataGridProps {
 	onAddRow: () => void;
 }
 
-interface EditingCell {
-	rowIndex: number;
-	columnName: string;
-	value: string;
-}
-
 export const DataGrid: React.FC<DataGridProps> = ({
 	columns,
 	rows,
@@ -42,19 +36,27 @@ export const DataGrid: React.FC<DataGridProps> = ({
 	onAddRow,
 }) => {
 	const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
-	const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [filterColumn, setFilterColumn] = useState('');
 	const [filterOp, setFilterOp] = useState('=');
 	const [filterValue, setFilterValue] = useState('');
-	const editInputRef = useRef<HTMLInputElement>(null);
+	const [appliedFilter, setAppliedFilter] = useState<{ column: string; op: string; value: string } | null>(null);
+
+	const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
+	const editingRowValuesRef = useRef<Record<string, string>>({});
+	const firstEditInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		if (editingCell && editInputRef.current) {
-			editInputRef.current.focus();
-			editInputRef.current.select();
+		if (editingRowIndex !== null && firstEditInputRef.current) {
+			firstEditInputRef.current.focus();
 		}
-	}, [editingCell]);
+	}, [editingRowIndex]);
+
+	useEffect(() => {
+		editingRowValuesRef.current = {};
+		setEditingRowIndex(null);
+		setSelectedRows(new Set());
+	}, [rows]);
 
 	const pkColumns = useMemo(
 		() => columns.filter((c) => c.isPrimaryKey).map((c) => c.name),
@@ -98,34 +100,53 @@ export const DataGrid: React.FC<DataGridProps> = ({
 		});
 	}, [rows]);
 
-	const handleCellDoubleClick = useCallback(
-		(rowIndex: number, columnName: string) => {
+	const startEditRow = useCallback(
+		(rowIndex: number) => {
 			const row = rows[rowIndex];
-			const val = row[columnName];
-			setEditingCell({
-				rowIndex,
-				columnName,
-				value: val === null || val === undefined ? '' : String(val),
-			});
+			const values: Record<string, string> = {};
+			for (const col of columns) {
+				const val = row[col.name];
+				values[col.name] = val === null || val === undefined ? '' : String(val);
+			}
+			editingRowValuesRef.current = values;
+			setEditingRowIndex(rowIndex);
 		},
-		[rows]
+		[rows, columns]
 	);
 
-	const commitEdit = useCallback(() => {
-		if (!editingCell) return;
-		const row = rows[editingCell.rowIndex];
-		const oldVal = row[editingCell.columnName];
-		const newVal = editingCell.value === '' ? null : editingCell.value;
+	const saveEditRow = useCallback(() => {
+		if (editingRowIndex === null) return;
+		const row = rows[editingRowIndex];
+		const editValues = editingRowValuesRef.current;
+		const changes: Record<string, unknown> = {};
 
-		if (String(oldVal ?? '') !== String(newVal ?? '')) {
-			onUpdateRow(getPk(row), { [editingCell.columnName]: newVal });
+		for (const col of columns) {
+			const oldVal = row[col.name];
+			const newVal = editValues[col.name] === '' ? null : editValues[col.name];
+			if (String(oldVal ?? '') !== String(newVal ?? '')) {
+				changes[col.name] = newVal;
+			}
 		}
-		setEditingCell(null);
-	}, [editingCell, rows, getPk, onUpdateRow]);
 
-	const cancelEdit = useCallback(() => {
-		setEditingCell(null);
+		if (Object.keys(changes).length > 0) {
+			onUpdateRow(getPk(row), changes);
+		}
+		editingRowValuesRef.current = {};
+		setEditingRowIndex(null);
+	}, [editingRowIndex, rows, columns, getPk, onUpdateRow]);
+
+	const cancelEditRow = useCallback(() => {
+		editingRowValuesRef.current = {};
+		setEditingRowIndex(null);
 	}, []);
+
+	const handleDeleteRow = useCallback(
+		(rowIndex: number) => {
+			const row = rows[rowIndex];
+			onDeleteRows([getPk(row)]);
+		},
+		[rows, getPk, onDeleteRows]
+	);
 
 	const handleDeleteSelected = useCallback(() => {
 		const pks = Array.from(selectedRows).map((i) => getPk(rows[i]));
@@ -133,9 +154,21 @@ export const DataGrid: React.FC<DataGridProps> = ({
 		setSelectedRows(new Set());
 	}, [selectedRows, rows, getPk, onDeleteRows]);
 
+	const hasFilterInput = filterColumn !== '' && filterValue !== '';
+
+	const filterIsDirty = useMemo(() => {
+		if (!appliedFilter) return hasFilterInput;
+		return (
+			appliedFilter.column !== filterColumn ||
+			appliedFilter.op !== filterOp ||
+			appliedFilter.value !== filterValue
+		);
+	}, [appliedFilter, filterColumn, filterOp, filterValue, hasFilterInput]);
+
 	const handleApplyFilter = useCallback(() => {
 		if (!filterColumn || !filterValue) {
 			onFilter('');
+			setAppliedFilter(null);
 			return;
 		}
 		const ops: Record<string, string> = {
@@ -149,11 +182,26 @@ export const DataGrid: React.FC<DataGridProps> = ({
 		const op = ops[filterOp] || '=';
 		const where = `"${filterColumn}" ${op} '${filterValue.replace(/'/g, "''")}'`;
 		onFilter(where);
+		setAppliedFilter({ column: filterColumn, op: filterOp, value: filterValue });
 	}, [filterColumn, filterOp, filterValue, onFilter]);
+
+	const handleCancelFilter = useCallback(() => {
+		if (appliedFilter) {
+			setFilterColumn(appliedFilter.column);
+			setFilterOp(appliedFilter.op);
+			setFilterValue(appliedFilter.value);
+		} else {
+			setFilterColumn('');
+			setFilterOp('=');
+			setFilterValue('');
+		}
+	}, [appliedFilter]);
 
 	const handleClearFilter = useCallback(() => {
 		setFilterColumn('');
+		setFilterOp('=');
 		setFilterValue('');
+		setAppliedFilter(null);
 		onFilter('');
 	}, [onFilter]);
 
@@ -167,26 +215,19 @@ export const DataGrid: React.FC<DataGridProps> = ({
 				const colName = column.id;
 				const val = row.original[colName];
 
-				if (
-					editingCell &&
-					editingCell.rowIndex === rowIndex &&
-					editingCell.columnName === colName
-				) {
+				if (editingRowIndex === rowIndex) {
 					return (
 						<input
-							ref={editInputRef}
+							ref={colName === columns[0]?.name ? firstEditInputRef : undefined}
 							className="cell-edit-input"
-							value={editingCell.value}
-							onChange={(e) =>
-								setEditingCell((prev) =>
-									prev ? { ...prev, value: e.target.value } : null
-								)
-							}
-							onKeyDown={(e) => {
-								if (e.key === 'Enter') commitEdit();
-								if (e.key === 'Escape') cancelEdit();
+							defaultValue={editingRowValuesRef.current[colName] ?? ''}
+							onChange={(e) => {
+								editingRowValuesRef.current[colName] = e.target.value;
 							}}
-							onBlur={commitEdit}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter') saveEditRow();
+								if (e.key === 'Escape') cancelEditRow();
+							}}
 						/>
 					);
 				}
@@ -194,14 +235,14 @@ export const DataGrid: React.FC<DataGridProps> = ({
 				return (
 					<span
 						className={`cell-value ${val === null ? 'null-value' : ''}`}
-						onDoubleClick={() => handleCellDoubleClick(rowIndex, colName)}
+						onDoubleClick={() => startEditRow(rowIndex)}
 					>
 						{val === null ? 'NULL' : String(val)}
 					</span>
 				);
 			},
 		}));
-	}, [columns, editingCell, commitEdit, cancelEdit, handleCellDoubleClick]);
+	}, [columns, editingRowIndex, saveEditRow, cancelEditRow, startEditRow]);
 
 	const table = useReactTable({
 		data: rows,
@@ -269,12 +310,21 @@ export const DataGrid: React.FC<DataGridProps> = ({
 							if (e.key === 'Enter') handleApplyFilter();
 						}}
 					/>
-					<button className="action-btn" onClick={handleApplyFilter}>
+					<button
+						className="action-btn primary"
+						onClick={handleApplyFilter}
+						disabled={!hasFilterInput || !filterIsDirty}
+					>
 						Apply
 					</button>
-					{(filterColumn || filterValue) && (
-						<button className="action-btn" onClick={handleClearFilter}>
-							Clear
+					{filterIsDirty && (hasFilterInput || appliedFilter) && (
+						<button className="action-btn" onClick={handleCancelFilter}>
+							Cancel
+						</button>
+					)}
+					{appliedFilter && (
+						<button className="action-btn danger" onClick={handleClearFilter}>
+							Clear Filter
 						</button>
 					)}
 				</div>
@@ -317,6 +367,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
 										</span>
 									</th>
 								))}
+								<th className="actions-col-header">Actions</th>
 							</tr>
 						))}
 					</thead>
@@ -324,7 +375,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
 						{rows.length === 0 ? (
 							<tr>
 								<td
-									colSpan={columns.length + 1}
+									colSpan={columns.length + 2}
 									className="empty-message"
 								>
 									No rows found
@@ -334,7 +385,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
 							table.getRowModel().rows.map((row) => (
 								<tr
 									key={row.id}
-									className={selectedRows.has(row.index) ? 'selected-row' : ''}
+									className={`${selectedRows.has(row.index) ? 'selected-row' : ''} ${editingRowIndex === row.index ? 'editing-row' : ''}`}
 								>
 									<td className="checkbox-col">
 										<input
@@ -351,6 +402,43 @@ export const DataGrid: React.FC<DataGridProps> = ({
 											)}
 										</td>
 									))}
+									<td className="actions-col">
+										{editingRowIndex === row.index ? (
+											<div className="row-actions">
+												<button
+													className="row-action-btn save"
+													onClick={saveEditRow}
+													title="Save changes"
+												>
+													✓
+												</button>
+												<button
+													className="row-action-btn cancel"
+													onClick={cancelEditRow}
+													title="Cancel editing"
+												>
+													✕
+												</button>
+											</div>
+										) : (
+											<div className="row-actions">
+												<button
+													className="row-action-btn edit"
+													onClick={() => startEditRow(row.index)}
+													title="Edit row"
+												>
+													✎
+												</button>
+												<button
+													className="row-action-btn delete"
+													onClick={() => handleDeleteRow(row.index)}
+													title="Delete row"
+												>
+													🗑
+												</button>
+											</div>
+										)}
+									</td>
 								</tr>
 							))
 						)}

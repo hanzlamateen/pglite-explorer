@@ -6,6 +6,7 @@ test/**
 spec/**
 out-test/**
 node_modules/**
+!node_modules/@electric-sql/**
 .gitignore
 .editorconfig
 eslint.config.mjs

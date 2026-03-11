@@ -146,20 +146,29 @@ export class ExplorerPanelProvider {
 					this.panel?.webview.postMessage({ type: 'schema', schema });
 					break;
 				}
-				case 'exportData': {
-					const exportResult = await this.queryService.exportData(
-						msg.dbPath,
-						msg.table,
-						msg.format
-					);
-					this.panel?.webview.postMessage({
-						type: 'exportReady',
-						data: exportResult.data,
-						format: msg.format,
-						fileName: exportResult.fileName,
-					});
-					break;
+			case 'exportData': {
+				const exportResult = await this.queryService.exportData(
+					msg.dbPath,
+					msg.table,
+					msg.format
+				);
+				const filterLabel = msg.format === 'json' ? 'JSON' : 'CSV';
+				const ext = msg.format === 'json' ? 'json' : 'csv';
+				const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri;
+				const defaultUri = workspaceDir
+					? vscode.Uri.joinPath(workspaceDir, exportResult.fileName)
+					: vscode.Uri.file(exportResult.fileName);
+				const uri = await vscode.window.showSaveDialog({
+					defaultUri,
+					filters: { [filterLabel]: [ext] },
+					title: `Export ${msg.table} as ${filterLabel}`,
+				});
+				if (uri) {
+					await vscode.workspace.fs.writeFile(uri, Buffer.from(exportResult.data, 'utf-8'));
+					vscode.window.showInformationMessage(`Exported ${msg.table} to ${uri.fsPath}`);
 				}
+				break;
+			}
 			}
 		} catch (err: unknown) {
 			const message = err instanceof Error ? err.message : String(err);

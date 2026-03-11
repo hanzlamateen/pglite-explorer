@@ -61,7 +61,6 @@ export type ExtToWebviewMessage =
 		executionTimeMs: number;
 	}
 	| { type: 'schema'; schema: TableSchema }
-	| { type: 'exportReady'; data: string; format: 'csv' | 'json'; fileName: string }
 	| { type: 'error'; message: string }
 	| { type: 'rowInserted'; table: string }
 	| { type: 'rowUpdated'; table: string }

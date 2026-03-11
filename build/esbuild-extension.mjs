@@ -8,7 +8,7 @@ const distDir = path.join(__dirname, '..', 'dist');
 
 const sharedOptions = {
 	bundle: true,
-	external: ['vscode'],
+	external: ['vscode', '@electric-sql/pglite'],
 	sourcemap: true,
 };
 

@@ -244,7 +244,7 @@ body {
 	white-space: nowrap;
 }
 
-.action-btn:hover {
+.action-btn:not(:disabled):hover {
 	background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.12));
 }
 
@@ -254,7 +254,7 @@ body {
 	border-color: transparent;
 }
 
-.action-btn.primary:hover {
+.action-btn.primary:not(:disabled):hover {
 	background: var(--vscode-button-hoverBackground, #1177bb);
 }
 
@@ -264,7 +264,7 @@ body {
 	border-color: transparent;
 }
 
-.action-btn.danger:hover {
+.action-btn.danger:not(:disabled):hover {
 	background: #7a2d2d;
 }
 
@@ -376,6 +376,31 @@ body {
 .checkbox-col {
 	width: 32px;
 	text-align: center;
+	position: sticky;
+	left: 0;
+	z-index: 1;
+	background: inherit;
+}
+
+thead .checkbox-col {
+	z-index: 3;
+	background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+}
+
+tbody .checkbox-col {
+	background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.datagrid-table tbody tr:hover .checkbox-col {
+	background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.05));
+}
+
+.datagrid-table tbody tr.selected-row .checkbox-col {
+	background: var(--vscode-list-activeSelectionBackground, #094771);
+}
+
+.datagrid-table tbody tr.editing-row .checkbox-col {
+	background: var(--vscode-editor-inactiveSelectionBackground, rgba(0, 122, 204, 0.1));
 }
 
 .cell-value {
@@ -397,6 +422,114 @@ body {
 	font-family: inherit;
 	outline: none;
 	border-radius: 2px;
+}
+
+/* Row Actions */
+.actions-col-header {
+	width: 80px;
+	text-align: center;
+	position: sticky;
+	right: 0;
+	z-index: 2;
+	background: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+}
+
+.actions-col {
+	width: 80px;
+	text-align: center;
+	white-space: nowrap;
+	position: sticky;
+	right: 0;
+	z-index: 1;
+	background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.datagrid-table tbody tr:hover .actions-col {
+	background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.05));
+}
+
+.datagrid-table tbody tr.selected-row .actions-col {
+	background: var(--vscode-list-activeSelectionBackground, #094771);
+}
+
+.datagrid-table tbody tr.editing-row .actions-col {
+	background: var(--vscode-editor-inactiveSelectionBackground, rgba(0, 122, 204, 0.1));
+}
+
+.row-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.row-action-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 24px;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	background: transparent;
+	cursor: pointer;
+	font-size: 13px;
+	line-height: 1;
+	opacity: 0;
+	transition: opacity 0.1s, background 0.1s;
+}
+
+.datagrid-table tbody tr:hover .row-action-btn,
+.datagrid-table tbody tr.editing-row .row-action-btn {
+	opacity: 0.8;
+}
+
+.row-action-btn:hover {
+	opacity: 1 !important;
+}
+
+.row-action-btn.edit {
+	color: var(--vscode-foreground);
+}
+
+.row-action-btn.edit:hover {
+	background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.12));
+}
+
+.row-action-btn.delete {
+	color: var(--vscode-errorForeground, #f88);
+	font-size: 12px;
+}
+
+.row-action-btn.delete:hover {
+	background: rgba(255, 80, 80, 0.15);
+}
+
+.row-action-btn.save {
+	color: #89d185;
+	font-weight: bold;
+	font-size: 15px;
+}
+
+.row-action-btn.save:hover {
+	background: rgba(137, 209, 133, 0.15);
+}
+
+.row-action-btn.cancel {
+	color: var(--vscode-errorForeground, #f88);
+	font-weight: bold;
+}
+
+.row-action-btn.cancel:hover {
+	background: rgba(255, 80, 80, 0.15);
+}
+
+.datagrid-table tbody tr.editing-row {
+	background: var(--vscode-editor-inactiveSelectionBackground, rgba(0, 122, 204, 0.1));
+}
+
+.datagrid-table tbody tr.editing-row .row-action-btn {
+	opacity: 1;
 }
 
 .empty-message {

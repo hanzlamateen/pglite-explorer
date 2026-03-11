@@ -14,7 +14,6 @@ import { DataGrid } from './components/DataGrid';
 import { AddRowDialog } from './components/AddRowDialog';
 import { SqlEditor } from './components/SqlEditor';
 import { SchemaViewer } from './components/SchemaViewer';
-import { ExportButton } from './components/ExportButton';
 
 const PAGE_SIZE = window.__PGLITE_CONFIG__?.pageSize ?? 50;
 const INITIAL_DB = window.__PGLITE_CONFIG__?.initialDb ?? null;
@@ -49,12 +48,6 @@ export const App: React.FC = () => {
 
 	const [schema, setSchema] = useState<TableSchema | null>(null);
 	const [schemaLoading, setSchemaLoading] = useState(false);
-
-	const [exportData, setExportData] = useState<{
-		data: string;
-		format: 'csv' | 'json';
-		fileName: string;
-	} | null>(null);
 
 	const [error, setError] = useState<string | null>(null);
 
@@ -116,12 +109,22 @@ export const App: React.FC = () => {
 						pendingTable.current = null;
 					}
 					break;
-				case 'selectDatabase':
-					setSelectedDb(msg.dbPath);
+			case 'selectDatabase': {
+				const isSameDb = latestState.current.selectedDb === msg.dbPath;
+				if (isSameDb && msg.tableName) {
+					setSelectedTable(msg.tableName);
+				} else {
+					setSelectedTable(null);
+					setColumns([]);
+					setRows([]);
+					setTotalCount(0);
 					if (msg.tableName) {
 						pendingTable.current = msg.tableName;
 					}
-					break;
+					setSelectedDb(msg.dbPath);
+				}
+				break;
+			}
 				case 'tableData':
 					setColumns(msg.columns);
 					setRows(msg.rows);
@@ -136,10 +139,7 @@ export const App: React.FC = () => {
 					setSchema(msg.schema);
 					setSchemaLoading(false);
 					break;
-				case 'exportReady':
-					setExportData(msg);
-					break;
-				case 'rowInserted':
+			case 'rowInserted':
 				case 'rowUpdated':
 				case 'rowsDeleted':
 					refreshTableData();
@@ -289,7 +289,6 @@ export const App: React.FC = () => {
 		(format: 'csv' | 'json') => {
 			const { selectedDb: db, selectedTable: tbl } = latestState.current;
 			if (!db || !tbl) return;
-			setExportData(null);
 			sendMessageRef.current?.({
 				type: 'exportData',
 				dbPath: db,
@@ -398,7 +397,6 @@ export const App: React.FC = () => {
 				/>
 			)}
 
-			<ExportButton exportData={exportData} />
-		</div>
+			</div>
 	);
 };
