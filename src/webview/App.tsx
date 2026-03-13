@@ -14,6 +14,8 @@ import { DataGrid } from './components/DataGrid';
 import { AddRowDialog } from './components/AddRowDialog';
 import { SqlEditor } from './components/SqlEditor';
 import { SchemaViewer } from './components/SchemaViewer';
+import { CreateTableDialog } from './components/CreateTableDialog';
+import { EditTableDialog } from './components/EditTableDialog';
 
 const PAGE_SIZE = window.__PGLITE_CONFIG__?.pageSize ?? 50;
 const INITIAL_DB = window.__PGLITE_CONFIG__?.initialDb ?? null;
@@ -36,6 +38,9 @@ export const App: React.FC = () => {
 	const [where, setWhere] = useState<string | undefined>();
 
 	const [showAddRow, setShowAddRow] = useState(false);
+	const [showCreateTable, setShowCreateTable] = useState(false);
+	const [showEditTable, setShowEditTable] = useState(false);
+	const [editTableSchema, setEditTableSchema] = useState<TableSchema | null>(null);
 
 	const [sqlResult, setSqlResult] = useState<{
 		columns: ColumnMeta[];
@@ -77,6 +82,13 @@ export const App: React.FC = () => {
 	const refreshTableData = useCallback(() => {
 		loadTableData(latestState.current.page);
 	}, [loadTableData]);
+
+	const refreshTableList = useCallback(() => {
+		const db = latestState.current.selectedDb;
+		if (db) {
+			sendMessageRef.current?.({ type: 'listTables', dbPath: db });
+		}
+	}, []);
 
 	const loadSchema = useCallback(() => {
 		const { selectedDb: db, selectedTable: tbl } = latestState.current;
@@ -144,15 +156,48 @@ export const App: React.FC = () => {
 				case 'rowsDeleted':
 					refreshTableData();
 					break;
+				case 'databaseCreated':
+					setSelectedDb(msg.dbPath);
+					break;
+				case 'tableCreated':
+					refreshTableList();
+					if (msg.tableName) {
+						pendingTable.current = msg.tableName;
+					}
+					setShowCreateTable(false);
+					break;
+				case 'tableAltered':
+					refreshTableList();
+					if (msg.tableName) {
+						pendingTable.current = msg.tableName;
+						setSelectedTable(null);
+					}
+					setShowEditTable(false);
+					setEditTableSchema(null);
+					break;
+				case 'tableDropped': {
+					refreshTableList();
+					if (latestState.current.selectedTable === msg.tableName) {
+						setSelectedTable(null);
+						setColumns([]);
+						setRows([]);
+						setTotalCount(0);
+						setSchema(null);
+					}
+					break;
+				}
 				case 'error':
 					setError(msg.message);
 					setIsExecuting(false);
 					setSchemaLoading(false);
+					setShowCreateTable(false);
+					setShowEditTable(false);
+					setEditTableSchema(null);
 					setTimeout(() => setError(null), 5000);
 					break;
 			}
 		},
-		[refreshTableData]
+		[refreshTableData, refreshTableList]
 	);
 
 	const sendMessage = useMessaging(handleMessage);
@@ -307,6 +352,73 @@ export const App: React.FC = () => {
 		}
 	}, [refreshTableData]);
 
+	const handleCreateDatabase = useCallback(() => {
+		sendMessageRef.current?.({ type: 'createDatabase' });
+	}, []);
+
+	const handleCreateTable = useCallback(
+		(sql: string) => {
+			const db = latestState.current.selectedDb;
+			if (!db) return;
+			sendMessageRef.current?.({ type: 'createTable', dbPath: db, sql });
+		},
+		[]
+	);
+
+	const editListenerRef = useRef<((e: MessageEvent) => void) | null>(null);
+
+	const handleEditTable = useCallback(
+		(tableName: string) => {
+			const db = latestState.current.selectedDb;
+			if (!db) return;
+
+			if (editListenerRef.current) {
+				window.removeEventListener('message', editListenerRef.current);
+				editListenerRef.current = null;
+			}
+
+			const existingSchema = schema?.tableName === tableName ? schema : null;
+			if (existingSchema) {
+				setEditTableSchema(existingSchema);
+				setShowEditTable(true);
+			} else {
+				setSchemaLoading(true);
+				sendMessageRef.current?.({ type: 'getSchema', dbPath: db, table: tableName });
+				const listener = (event: MessageEvent) => {
+					const data = event.data as ExtToWebviewMessage;
+					if (data.type === 'schema' && data.schema.tableName === tableName) {
+						setEditTableSchema(data.schema);
+						setShowEditTable(true);
+						setSchemaLoading(false);
+						window.removeEventListener('message', listener);
+						editListenerRef.current = null;
+					}
+				};
+				editListenerRef.current = listener;
+				window.addEventListener('message', listener);
+			}
+		},
+		[schema]
+	);
+
+	const handleAlterTable = useCallback(
+		(sql: string, tableName: string) => {
+			const db = latestState.current.selectedDb;
+			if (!db) return;
+			sendMessageRef.current?.({ type: 'alterTable', dbPath: db, sql, tableName });
+		},
+		[]
+	);
+
+	const handleDropTable = useCallback(
+		(tableName: string) => {
+			const db = latestState.current.selectedDb;
+			if (!db) return;
+			sendMessageRef.current?.({ type: 'dropTable', dbPath: db, tableName });
+		},
+		[]
+	);
+
 	return (
 		<div className="app">
 			<Toolbar
@@ -324,6 +436,10 @@ export const App: React.FC = () => {
 					selectedTable={selectedTable}
 					onSelectDb={setSelectedDb}
 					onSelectTable={setSelectedTable}
+					onCreateDatabase={handleCreateDatabase}
+					onCreateTable={() => setShowCreateTable(true)}
+					onEditTable={handleEditTable}
+					onDropTable={handleDropTable}
 				/>
 				<div className="main-content">
 					{error && <div className="error-banner">{error}</div>}
@@ -370,7 +486,11 @@ export const App: React.FC = () => {
 					)}
 
 					{activeTab === 'schema' && (
-						<SchemaViewer schema={schema} loading={schemaLoading} />
+						<SchemaViewer
+							schema={schema}
+							loading={schemaLoading}
+							onEditSchema={selectedTable ? () => handleEditTable(selectedTable) : undefined}
+						/>
 					)}
 				</div>
 			</div>
@@ -394,6 +514,23 @@ export const App: React.FC = () => {
 					columns={columns}
 					onSubmit={handleAddRow}
 					onClose={() => setShowAddRow(false)}
+				/>
+			)}
+
+			{showCreateTable && selectedDb && (
+				<CreateTableDialog
+					tables={tables}
+					onSubmit={handleCreateTable}
+					onClose={() => setShowCreateTable(false)}
+				/>
+			)}
+
+			{showEditTable && editTableSchema && (
+				<EditTableDialog
+					schema={editTableSchema}
+					tables={tables}
+					onSubmit={handleAlterTable}
+					onClose={() => { setShowEditTable(false); setEditTableSchema(null); }}
 				/>
 			)}
 

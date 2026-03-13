@@ -66,7 +66,7 @@ class DatabaseItem extends vscode.TreeItem {
 		this.tooltip = `${dbInfo.path}\nDetected by: ${dbInfo.detectedBy}`;
 		this.description = dbInfo.detectedBy;
 		this.iconPath = new vscode.ThemeIcon('database');
-		this.contextValue = 'database';
+		this.contextValue = dbInfo.detectedBy === 'manual' ? 'database-manual' : 'database';
 
 		this.command = {
 			command: 'pgliteExplorer.open',

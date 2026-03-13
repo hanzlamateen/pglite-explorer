@@ -189,6 +189,17 @@ export class QueryService {
 		};
 	}
 
+	async executeSqlStatements(dbPath: string, sql: string): Promise<void> {
+		const db = await this.connectionManager.getConnection(dbPath);
+		const statements = sql
+			.split(';')
+			.map((s) => s.trim())
+			.filter((s) => s.length > 0);
+		for (const stmt of statements) {
+			await db.query(stmt);
+		}
+	}
+
 	async exportData(
 		dbPath: string,
 		table: string,

@@ -154,12 +154,10 @@ body {
 .table-item {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	padding: 5px 8px;
+	justify-content: space-between;
 	border: none;
 	background: transparent;
 	color: var(--vscode-foreground);
-	cursor: pointer;
 	font-size: 12px;
 	text-align: left;
 	border-radius: 3px;
@@ -653,10 +651,17 @@ tbody .checkbox-col {
 	flex: 1;
 }
 
+.schema-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16px;
+}
+
 .schema-title {
 	font-size: 16px;
 	font-weight: 600;
-	margin-bottom: 16px;
+	margin: 0;
 }
 
 .schema-section {
@@ -817,6 +822,12 @@ tbody .checkbox-col {
 	color: var(--vscode-errorForeground, #f88);
 }
 
+.form-error {
+	color: var(--vscode-errorForeground, #f88);
+	font-size: 12px;
+	margin-right: auto;
+}
+
 .form-input {
 	padding: 5px 8px;
 	border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3));
@@ -845,4 +856,399 @@ tbody .checkbox-col {
 	flex-direction: column;
 	flex: 1;
 	overflow: hidden;
+}
+
+/* ===== Sidebar Enhancements ===== */
+.sidebar-label-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.sidebar-label-row .sidebar-label {
+	margin-bottom: 0;
+}
+
+.btn-sidebar-action {
+	width: 22px;
+	height: 22px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3));
+	border-radius: 3px;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: bold;
+	opacity: 0.6;
+	transition: opacity 0.15s, background 0.15s;
+}
+
+.btn-sidebar-action:hover {
+	opacity: 1;
+	background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.12));
+}
+
+.table-item-btn {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 8px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	font-size: 12px;
+	text-align: left;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.table-item-actions {
+	display: flex;
+	gap: 2px;
+	opacity: 0;
+	transition: opacity 0.15s;
+	padding-right: 4px;
+}
+
+.table-item:hover .table-item-actions {
+	opacity: 1;
+}
+
+.btn-table-action {
+	width: 20px;
+	height: 20px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: 11px;
+	opacity: 0.6;
+	transition: opacity 0.15s, background 0.15s;
+}
+
+.btn-table-action:hover {
+	opacity: 1;
+	background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.12));
+}
+
+.btn-danger-subtle:hover {
+	color: var(--vscode-errorForeground, #f88);
+	background: rgba(255, 80, 80, 0.15);
+}
+
+/* ===== Wide Dialog (Create/Edit Table) ===== */
+.dialog-wide {
+	width: 720px;
+	max-width: 90vw;
+	max-height: 85vh;
+}
+
+/* ===== Column Builder ===== */
+.section-header {
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	opacity: 0.7;
+	padding-top: 4px;
+}
+
+.section-toggle {
+	cursor: pointer;
+	user-select: none;
+}
+
+.section-toggle:hover {
+	opacity: 1;
+}
+
+.column-builder {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 12px;
+}
+
+.column-builder-header {
+	display: grid;
+	grid-template-columns: 2fr 2fr 40px 40px 50px 1.5fr 32px;
+	gap: 4px;
+	padding: 4px 0;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+	opacity: 0.6;
+}
+
+.edit-col-header {
+	grid-template-columns: 2fr 2fr 40px 1.5fr 44px;
+}
+
+.dialog-wide .edit-col-header ~ .column-builder-row {
+	grid-template-columns: 2fr 2fr 40px 1.5fr 44px;
+}
+
+.column-builder-row {
+	display: grid;
+	grid-template-columns: 2fr 2fr 40px 40px 50px 1.5fr 32px;
+	gap: 4px;
+	align-items: center;
+}
+
+.column-builder-row .form-input {
+	padding: 3px 6px;
+	font-size: 11px;
+	min-width: 0;
+}
+
+.column-builder-row select.form-input {
+	padding: 3px 4px;
+}
+
+.column-builder-row input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	margin: 0 auto;
+	cursor: pointer;
+}
+
+.column-builder-row.row-dropped {
+	opacity: 0.35;
+	text-decoration: line-through;
+}
+
+.column-builder-row.row-new {
+	border-left: 2px solid #89d185;
+	padding-left: 2px;
+}
+
+/* ===== Buttons ===== */
+.btn-icon {
+	width: 26px;
+	height: 26px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 13px;
+	transition: background 0.15s, color 0.15s;
+	color: var(--vscode-foreground);
+}
+
+.btn-icon.btn-sidebar-action {
+	width: 22px;
+	height: 22px;
+}
+
+.btn-icon.btn-table-action {
+	width: 20px;
+	height: 20px;
+}
+
+.btn-icon:disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
+
+.btn-icon.btn-danger {
+	color: var(--vscode-errorForeground, #f88);
+}
+
+.btn-icon.btn-danger:hover:not(:disabled) {
+	background: rgba(255, 80, 80, 0.15);
+}
+
+.btn-icon.btn-undo {
+	color: #89d185;
+}
+
+.btn-icon.btn-undo:hover {
+	background: rgba(137, 209, 133, 0.15);
+}
+
+.action-btn.small {
+	padding: 2px 8px;
+	font-size: 11px;
+}
+
+.pk-badge {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--vscode-symbolIcon-keywordForeground, #569cd6);
+	background: rgba(86, 156, 214, 0.1);
+	padding: 2px 6px;
+	border-radius: 3px;
+	text-align: center;
+}
+
+/* ===== Constraints Section ===== */
+.constraints-section {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.constraint-group {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.constraint-group-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.constraint-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.constraint-row .form-input {
+	padding: 3px 6px;
+	font-size: 11px;
+	min-width: 0;
+	flex: 1;
+	max-width: 150px;
+}
+
+.constraint-expr {
+	flex: 2 !important;
+	max-width: 300px !important;
+}
+
+.constraint-arrow {
+	font-size: 14px;
+	opacity: 0.5;
+	padding: 0 2px;
+}
+
+.multi-select-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 10px;
+}
+
+.checkbox-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.checkbox-label input[type="checkbox"] {
+	width: 13px;
+	height: 13px;
+	cursor: pointer;
+}
+
+/* Existing constraint display */
+.constraint-existing-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	border-radius: 3px;
+	font-size: 11px;
+	background: var(--vscode-input-background, rgba(255, 255, 255, 0.04));
+}
+
+.constraint-existing-row.row-dropped {
+	opacity: 0.35;
+	text-decoration: line-through;
+}
+
+.constraint-type-badge {
+	font-size: 9px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+	padding: 1px 5px;
+	border-radius: 2px;
+	background: rgba(86, 156, 214, 0.15);
+	color: var(--vscode-symbolIcon-keywordForeground, #569cd6);
+	white-space: nowrap;
+}
+
+.constraint-name {
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.constraint-def {
+	opacity: 0.6;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 10px;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ===== Edit Table Tabs ===== */
+.edit-tabs {
+	display: flex;
+	gap: 2px;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.2));
+	margin-bottom: 8px;
+}
+
+.edit-tab {
+	padding: 5px 12px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: 11px;
+	font-weight: 500;
+	border-bottom: 2px solid transparent;
+	opacity: 0.6;
+	transition: opacity 0.15s, border-color 0.15s;
+}
+
+.edit-tab:hover {
+	opacity: 0.9;
+}
+
+.edit-tab.active {
+	opacity: 1;
+	border-bottom-color: var(--vscode-focusBorder, #007acc);
+}
+
+/* ===== SQL Preview ===== */
+.sql-preview {
+	padding: 10px 12px;
+	background: var(--vscode-textCodeBlock-background, rgba(255, 255, 255, 0.04));
+	border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.2));
+	border-radius: 4px;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 11px;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-x: auto;
+	max-height: 200px;
+	overflow-y: auto;
 }

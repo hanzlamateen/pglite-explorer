@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import { DatabaseInfo } from '../../shared/protocol';
 
 export class DatabaseDiscovery implements vscode.Disposable {
@@ -52,7 +53,10 @@ export class DatabaseDiscovery implements vscode.Disposable {
 		const files = await vscode.workspace.findFiles('**/PG_VERSION', excludeGlob, 100);
 
 		const candidateDirs = files.map((f) => path.dirname(f.fsPath));
-		const rootDbs = this.filterSubdirectories(candidateDirs);
+
+		const hiddenDirs = await this.scanHiddenDirectories();
+		const allDirs = [...candidateDirs, ...hiddenDirs];
+		const rootDbs = this.filterSubdirectories(allDirs);
 
 		for (const dbDir of rootDbs) {
 			if (!this.databases.has(dbDir)) {
@@ -67,6 +71,43 @@ export class DatabaseDiscovery implements vscode.Disposable {
 					detectedBy: 'auto-scan',
 				});
 			}
+		}
+	}
+
+	private static readonly SKIP_HIDDEN = new Set([
+		'.git', '.svn', '.hg', '.vscode', '.cursor', '.DS_Store',
+	]);
+
+	private async scanHiddenDirectories(): Promise<string[]> {
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders) return [];
+
+		const results: string[] = [];
+		for (const folder of workspaceFolders) {
+			await this.findHiddenPgliteDirs(folder.uri.fsPath, results, 5);
+		}
+		return results;
+	}
+
+	private async findHiddenPgliteDirs(dir: string, results: string[], depth: number): Promise<void> {
+		if (depth <= 0) return;
+		try {
+			const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+			for (const entry of entries) {
+				if (!entry.isDirectory() || !entry.name.startsWith('.')) continue;
+				if (DatabaseDiscovery.SKIP_HIDDEN.has(entry.name)) continue;
+
+				const fullPath = path.join(dir, entry.name);
+				const pgVersionPath = path.join(fullPath, 'PG_VERSION');
+				try {
+					await fsPromises.access(pgVersionPath);
+					results.push(fullPath);
+				} catch {
+					await this.findHiddenPgliteDirs(fullPath, results, depth - 1);
+				}
+			}
+		} catch {
+			// Skip directories we can't read
 		}
 	}
 

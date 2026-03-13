@@ -6,5 +6,4 @@ out-test/
 .DS_Store
 
 # Generated sample databases (recreate with: npm run seed)
-test/fixtures/sample-workspace/ecommerce-db/
-test/fixtures/sample-workspace/blog-db/
+test/fixtures/sample-workspace/

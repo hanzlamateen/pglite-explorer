@@ -7,6 +7,10 @@ Browse and manage [PGlite](https://pglite.dev/) databases directly inside VS Cod
 ## Features
 
 - **Auto-detect databases** -- Scans your workspace for PGlite data directories (`PG_VERSION` files), parses source code for `new PGlite('./path')` patterns, and supports manual configuration
+- **Create databases** -- Initialize new PGlite databases from the UI via a folder picker
+- **Create tables** -- Visual form with column definitions and full constraint support (Primary Key, Foreign Key, Unique, Check, Indexes) with live SQL preview
+- **Edit table structure** -- ALTER TABLE operations through a visual diff-based editor: rename tables/columns, add/drop columns, change types, toggle nullable, manage constraints and indexes
+- **Drop tables** -- Remove tables with a confirmation prompt
 - **Spreadsheet-like data grid** -- View rows and columns with sorting, filtering, and pagination
 - **Inline editing** -- Double-click any cell to edit; Enter to save, Escape to cancel
 - **Add rows** -- Click "+ Add Row" to insert new records via a form respecting constraints
@@ -69,9 +73,10 @@ codium --install-extension EchEmLabs.pglite-explorer
 1. Open the Command Palette (`Ctrl+Shift+P`)
 2. Run **PGlite Explorer: Open PGlite Explorer**
 
-The extension will automatically scan your workspace for PGlite databases. If none are found, you can add one manually via:
+The extension will automatically scan your workspace for PGlite databases. If none are found, you can:
 
-- **PGlite Explorer: Add Database Path** -- opens a folder picker
+- **PGlite Explorer: Create New Database** -- creates a fresh PGlite database in a folder you choose
+- **PGlite Explorer: Add Database Path** -- opens a folder picker to add an existing database
 - The Activity Bar welcome view also shows "Add Database" and "Refresh" buttons
 
 ### Database Detection
@@ -81,6 +86,34 @@ The extension uses three strategies to find PGlite databases:
 1. **Auto-scan** -- Finds `PG_VERSION` files in your workspace (excluding `node_modules`, `.git`, etc.)
 2. **Source parsing** -- Scans `.ts` and `.js` files for `new PGlite('./path')` and `PGlite.create('./path')` constructor patterns
 3. **Manual config** -- User-specified paths via the `pgliteExplorer.databasePaths` setting
+
+### Creating Databases
+
+Click the **+** button next to the "Database" label in the sidebar, or run **PGlite Explorer: Create New Database** from the command palette. Select a parent folder and enter a name -- the extension initializes a new PGlite database directory automatically.
+
+### Creating Tables
+
+Click the **+** button next to the "Tables" label in the sidebar. The Create Table dialog lets you:
+
+- Define columns with name, type (grouped dropdown of PostgreSQL types), Primary Key, Not Null, Unique, and Default
+- Add table-level constraints: composite primary keys, foreign keys (with ON DELETE/UPDATE actions), multi-column unique, check constraints
+- Create indexes (regular and unique)
+- Preview the generated SQL before creating
+
+### Editing Tables
+
+Click the **pencil icon** next to any table in the sidebar to open the Edit Table dialog. You can:
+
+- Rename the table or individual columns
+- Add or drop columns
+- Change column types, toggle nullable, modify defaults
+- Add or drop constraints (Foreign Key, Unique, Check)
+- Add or drop indexes
+- Review all pending ALTER TABLE statements before applying
+
+### Dropping Tables
+
+Click the **x icon** next to a table in the sidebar. A confirmation dialog appears before the table is dropped.
 
 ### Working with Data
 
@@ -206,7 +239,7 @@ src/
   webview/                React webview (browser)
     index.tsx             Entry point
     App.tsx               Main app component
-    components/           UI components (Sidebar, DataGrid, SqlEditor, etc.)
+    components/           UI components (Sidebar, DataGrid, SqlEditor, CreateTableDialog, EditTableDialog, etc.)
     hooks/                React hooks
     styles/               CSS
   shared/                 Shared between extension and webview

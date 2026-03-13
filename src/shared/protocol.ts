@@ -65,7 +65,11 @@ export type ExtToWebviewMessage =
 	| { type: 'rowInserted'; table: string }
 	| { type: 'rowUpdated'; table: string }
 	| { type: 'rowsDeleted'; table: string; count: number }
-	| { type: 'selectDatabase'; dbPath: string; tableName?: string };
+	| { type: 'selectDatabase'; dbPath: string; tableName?: string }
+	| { type: 'databaseCreated'; dbPath: string }
+	| { type: 'tableCreated'; tableName: string }
+	| { type: 'tableAltered'; tableName: string }
+	| { type: 'tableDropped'; tableName: string };
 
 // Webview -> Extension messages
 export type WebviewToExtMessage =
@@ -93,4 +97,8 @@ export type WebviewToExtMessage =
 	| { type: 'executeQuery'; dbPath: string; sql: string }
 	| { type: 'getSchema'; dbPath: string; table: string }
 	| { type: 'exportData'; dbPath: string; table: string; format: 'csv' | 'json' }
-	| { type: 'refreshDatabases' };
+	| { type: 'refreshDatabases' }
+	| { type: 'createDatabase' }
+	| { type: 'createTable'; dbPath: string; sql: string }
+	| { type: 'alterTable'; dbPath: string; sql: string; tableName: string }
+	| { type: 'dropTable'; dbPath: string; tableName: string };

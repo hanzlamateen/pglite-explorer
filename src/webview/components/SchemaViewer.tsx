@@ -4,9 +4,10 @@ import { TableSchema } from '../../shared/protocol';
 interface SchemaViewerProps {
 	schema: TableSchema | null;
 	loading: boolean;
+	onEditSchema?: () => void;
 }
 
-export const SchemaViewer: React.FC<SchemaViewerProps> = ({ schema, loading }) => {
+export const SchemaViewer: React.FC<SchemaViewerProps> = ({ schema, loading, onEditSchema }) => {
 	if (loading) {
 		return <div className="schema-loading">Loading schema...</div>;
 	}
@@ -19,7 +20,14 @@ export const SchemaViewer: React.FC<SchemaViewerProps> = ({ schema, loading }) =
 
 	return (
 		<div className="schema-viewer">
-			<h3 className="schema-title">{schema.tableName}</h3>
+			<div className="schema-header">
+				<h3 className="schema-title">{schema.tableName}</h3>
+				{onEditSchema && (
+					<button className="action-btn primary" onClick={onEditSchema}>
+						✎ Edit Schema
+					</button>
+				)}
+			</div>
 
 			<div className="schema-section">
 				<h4 className="schema-section-title">Columns</h4>

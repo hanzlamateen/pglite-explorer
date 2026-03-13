@@ -82,13 +82,25 @@
         "command": "pgliteExplorer.addDatabase",
         "title": "Add Database Path",
         "category": "PGlite Explorer",
-        "icon": "$(add)"
+        "icon": "$(plug)"
       },
       {
         "command": "pgliteExplorer.openTable",
         "title": "Open Table in Explorer",
         "category": "PGlite Explorer",
         "icon": "$(table)"
+      },
+      {
+        "command": "pgliteExplorer.createDatabase",
+        "title": "Create New Database",
+        "category": "PGlite Explorer",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "pgliteExplorer.removeDatabase",
+        "title": "Remove Database",
+        "category": "PGlite Explorer",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -99,26 +111,36 @@
           "group": "navigation@1"
         },
         {
-          "command": "pgliteExplorer.addDatabase",
+          "command": "pgliteExplorer.createDatabase",
           "when": "view == pgliteExplorerDatabases",
           "group": "navigation@2"
         },
         {
-          "command": "pgliteExplorer.refresh",
+          "command": "pgliteExplorer.addDatabase",
           "when": "view == pgliteExplorerDatabases",
           "group": "navigation@3"
+        },
+        {
+          "command": "pgliteExplorer.refresh",
+          "when": "view == pgliteExplorerDatabases",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
         {
           "command": "pgliteExplorer.open",
-          "when": "view == pgliteExplorerDatabases && viewItem == database",
+          "when": "view == pgliteExplorerDatabases && viewItem =~ /^database/",
           "group": "inline"
         },
         {
           "command": "pgliteExplorer.openTable",
           "when": "view == pgliteExplorerDatabases && viewItem == table",
           "group": "inline"
+        },
+        {
+          "command": "pgliteExplorer.removeDatabase",
+          "when": "view == pgliteExplorerDatabases && viewItem == database-manual",
+          "group": "7_modification"
         }
       ]
     },
@@ -172,7 +194,7 @@
     }
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.2.0"
+    "@electric-sql/pglite": "^0.3.16"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.18.0",

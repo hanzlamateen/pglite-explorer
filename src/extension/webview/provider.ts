@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { DatabaseDiscovery } from '../database/discovery';
 import { ConnectionManager } from '../database/connection';
 import { QueryService } from '../database/query';
 import { WebviewToExtMessage } from '../../shared/protocol';
-import { getConfig } from '../config';
+import { getConfig, CONFIG_SECTION } from '../config';
 
 export class ExplorerPanelProvider {
 	private panel: vscode.WebviewPanel | undefined;
@@ -146,34 +147,105 @@ export class ExplorerPanelProvider {
 					this.panel?.webview.postMessage({ type: 'schema', schema });
 					break;
 				}
-			case 'exportData': {
-				const exportResult = await this.queryService.exportData(
+		case 'exportData': {
+			const exportResult = await this.queryService.exportData(
+				msg.dbPath,
+				msg.table,
+				msg.format
+			);
+			const filterLabel = msg.format === 'json' ? 'JSON' : 'CSV';
+			const ext = msg.format === 'json' ? 'json' : 'csv';
+			const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri;
+			const defaultUri = workspaceDir
+				? vscode.Uri.joinPath(workspaceDir, exportResult.fileName)
+				: vscode.Uri.file(exportResult.fileName);
+			const uri = await vscode.window.showSaveDialog({
+				defaultUri,
+				filters: { [filterLabel]: [ext] },
+				title: `Export ${msg.table} as ${filterLabel}`,
+			});
+			if (uri) {
+				await vscode.workspace.fs.writeFile(uri, Buffer.from(exportResult.data, 'utf-8'));
+				vscode.window.showInformationMessage(`Exported ${msg.table} to ${uri.fsPath}`);
+			}
+			break;
+		}
+		case 'createDatabase': {
+			await this.handleCreateDatabase();
+			break;
+		}
+		case 'createTable': {
+			await this.queryService.executeSqlStatements(msg.dbPath, msg.sql);
+			const nameMatch = msg.sql.match(/CREATE\s+TABLE\s+"([^"]+)"/i)
+				?? msg.sql.match(/CREATE\s+TABLE\s+(\S+)/i);
+			const tableName = nameMatch?.[1] ?? '';
+			this.panel?.webview.postMessage({ type: 'tableCreated', tableName });
+			break;
+		}
+		case 'alterTable': {
+			await this.queryService.executeSqlStatements(msg.dbPath, msg.sql);
+			this.panel?.webview.postMessage({ type: 'tableAltered', tableName: msg.tableName });
+			break;
+		}
+		case 'dropTable': {
+			const confirm = await vscode.window.showWarningMessage(
+				`Are you sure you want to drop table "${msg.tableName}"? This cannot be undone.`,
+				{ modal: true },
+				'Drop Table'
+			);
+			if (confirm === 'Drop Table') {
+				await this.queryService.executeQuery(
 					msg.dbPath,
-					msg.table,
-					msg.format
+					`DROP TABLE IF EXISTS "${msg.tableName.replace(/"/g, '""')}"`
 				);
-				const filterLabel = msg.format === 'json' ? 'JSON' : 'CSV';
-				const ext = msg.format === 'json' ? 'json' : 'csv';
-				const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri;
-				const defaultUri = workspaceDir
-					? vscode.Uri.joinPath(workspaceDir, exportResult.fileName)
-					: vscode.Uri.file(exportResult.fileName);
-				const uri = await vscode.window.showSaveDialog({
-					defaultUri,
-					filters: { [filterLabel]: [ext] },
-					title: `Export ${msg.table} as ${filterLabel}`,
-				});
-				if (uri) {
-					await vscode.workspace.fs.writeFile(uri, Buffer.from(exportResult.data, 'utf-8'));
-					vscode.window.showInformationMessage(`Exported ${msg.table} to ${uri.fsPath}`);
-				}
-				break;
+				this.panel?.webview.postMessage({ type: 'tableDropped', tableName: msg.tableName });
 			}
-			}
+			break;
+		}
+		}
 		} catch (err: unknown) {
 			const message = err instanceof Error ? err.message : String(err);
 			this.panel?.webview.postMessage({ type: 'error', message });
 		}
+	}
+
+	async createDatabase(): Promise<void> {
+		await this.handleCreateDatabase();
+	}
+
+	private async handleCreateDatabase(): Promise<void> {
+		const folderResult = await vscode.window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			openLabel: 'Select Parent Folder for New Database',
+		});
+		if (!folderResult?.[0]) return;
+
+		const dbName = await vscode.window.showInputBox({
+			prompt: 'Enter a name for the new database',
+			placeHolder: 'my-database',
+			validateInput: (value) => {
+				if (!value.trim()) return 'Database name is required';
+				if (/[<>:"/\\|?*]/.test(value)) return 'Name contains invalid characters';
+				return undefined;
+			},
+		});
+		if (!dbName) return;
+
+		const dbPath = path.join(folderResult[0].fsPath, dbName);
+		await this.connectionManager.getConnection(dbPath);
+
+		const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+		const paths = config.get<string[]>('databasePaths', []);
+		if (!paths.includes(dbPath)) {
+			paths.push(dbPath);
+			await config.update('databasePaths', paths, vscode.ConfigurationTarget.Workspace);
+		}
+
+		await this.discovery.discoverAll();
+		vscode.window.showInformationMessage(`PGlite Explorer: Created database at ${dbPath}`);
+		this.panel?.webview.postMessage({ type: 'databaseCreated', dbPath });
 	}
 
 	private getHtml(webview: vscode.Webview, initialDb?: string, initialTable?: string): string {
