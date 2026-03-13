@@ -1,6 +1,6 @@
 {
   "name": "pglite-explorer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "displayName": "PGlite Explorer",
   "description": "Detect and explore PGlite databases in your workspace with a visual GUI for browsing, editing, and querying data",
   "icon": "docs/logo.png",
