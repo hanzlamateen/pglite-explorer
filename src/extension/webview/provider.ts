@@ -3,12 +3,14 @@ import * as path from 'path';
 import { DatabaseDiscovery } from '../database/discovery';
 import { ConnectionManager } from '../database/connection';
 import { QueryService } from '../database/query';
+import { DatabaseTreeProvider } from '../views/databaseTree';
 import { WebviewToExtMessage } from '../../shared/protocol';
 import { getConfig, CONFIG_SECTION } from '../config';
 
 export class ExplorerPanelProvider {
 	private panel: vscode.WebviewPanel | undefined;
 	private panelDisposables: vscode.Disposable[] = [];
+	private treeProvider: DatabaseTreeProvider | undefined;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -17,11 +19,19 @@ export class ExplorerPanelProvider {
 		private readonly queryService: QueryService
 	) {}
 
-	open(dbPath?: string, tableName?: string): void {
+	setTreeProvider(treeProvider: DatabaseTreeProvider): void {
+		this.treeProvider = treeProvider;
+	}
+
+	private refreshTree(): void {
+		this.treeProvider?.refresh();
+	}
+
+	open(dbPath?: string, tableName?: string, tableSchema?: string): void {
 		if (this.panel) {
 			this.panel.reveal(vscode.ViewColumn.One);
 			if (dbPath) {
-				this.panel.webview.postMessage({ type: 'selectDatabase', dbPath, tableName });
+				this.panel.webview.postMessage({ type: 'selectDatabase', dbPath, tableName, tableSchema });
 			}
 			return;
 		}
@@ -39,7 +49,7 @@ export class ExplorerPanelProvider {
 			}
 		);
 
-		this.panel.webview.html = this.getHtml(this.panel.webview, dbPath, tableName);
+		this.panel.webview.html = this.getHtml(this.panel.webview, dbPath, tableName, tableSchema);
 
 		this.panelDisposables.push(
 			this.panel.webview.onDidReceiveMessage(
@@ -65,10 +75,23 @@ export class ExplorerPanelProvider {
 	private async handleMessage(msg: WebviewToExtMessage): Promise<void> {
 		try {
 			switch (msg.type) {
-				case 'listDatabases':
-				case 'refreshDatabases': {
+				case 'listDatabases': {
 					const databases = await this.discovery.discoverAll();
 					this.panel?.webview.postMessage({ type: 'databases', databases });
+					break;
+				}
+				case 'refreshDatabases': {
+					await this.connectionManager.reconnectAll();
+					const databases = await this.discovery.discoverAll();
+					this.panel?.webview.postMessage({ type: 'databases', databases });
+					this.refreshTree();
+					break;
+				}
+				case 'refreshTables': {
+					await this.connectionManager.reconnect(msg.dbPath);
+					const tables = await this.queryService.listTables(msg.dbPath);
+					this.panel?.webview.postMessage({ type: 'tables', tables });
+					this.refreshTree();
 					break;
 				}
 				case 'listTables': {
@@ -84,7 +107,8 @@ export class ExplorerPanelProvider {
 						msg.pageSize,
 						msg.orderBy,
 						msg.orderDir,
-						msg.where
+						msg.where,
+						msg.schema
 					);
 					this.panel?.webview.postMessage({
 						type: 'tableData',
@@ -95,7 +119,7 @@ export class ExplorerPanelProvider {
 					break;
 				}
 				case 'insertRow': {
-					await this.queryService.insertRow(msg.dbPath, msg.table, msg.row);
+					await this.queryService.insertRow(msg.dbPath, msg.table, msg.row, msg.schema);
 					this.panel?.webview.postMessage({
 						type: 'rowInserted',
 						table: msg.table,
@@ -107,7 +131,8 @@ export class ExplorerPanelProvider {
 						msg.dbPath,
 						msg.table,
 						msg.pk,
-						msg.changes
+						msg.changes,
+						msg.schema
 					);
 					this.panel?.webview.postMessage({
 						type: 'rowUpdated',
@@ -119,7 +144,8 @@ export class ExplorerPanelProvider {
 					const count = await this.queryService.deleteRows(
 						msg.dbPath,
 						msg.table,
-						msg.pks
+						msg.pks,
+						msg.schema
 					);
 					this.panel?.webview.postMessage({
 						type: 'rowsDeleted',
@@ -137,12 +163,16 @@ export class ExplorerPanelProvider {
 						type: 'queryResult',
 						...result,
 					});
+					if (!result.columns.length || this.looksLikeDdl(msg.sql)) {
+						this.refreshTree();
+					}
 					break;
 				}
 				case 'getSchema': {
 					const schema = await this.queryService.getSchema(
 						msg.dbPath,
-						msg.table
+						msg.table,
+						msg.schema
 					);
 					this.panel?.webview.postMessage({ type: 'schema', schema });
 					break;
@@ -151,7 +181,8 @@ export class ExplorerPanelProvider {
 			const exportResult = await this.queryService.exportData(
 				msg.dbPath,
 				msg.table,
-				msg.format
+				msg.format,
+				msg.schema
 			);
 			const filterLabel = msg.format === 'json' ? 'JSON' : 'CSV';
 			const ext = msg.format === 'json' ? 'json' : 'csv';
@@ -180,11 +211,13 @@ export class ExplorerPanelProvider {
 				?? msg.sql.match(/CREATE\s+TABLE\s+(\S+)/i);
 			const tableName = nameMatch?.[1] ?? '';
 			this.panel?.webview.postMessage({ type: 'tableCreated', tableName });
+			this.refreshTree();
 			break;
 		}
 		case 'alterTable': {
 			await this.queryService.executeSqlStatements(msg.dbPath, msg.sql);
 			this.panel?.webview.postMessage({ type: 'tableAltered', tableName: msg.tableName });
+			this.refreshTree();
 			break;
 		}
 		case 'dropTable': {
@@ -194,11 +227,14 @@ export class ExplorerPanelProvider {
 				'Drop Table'
 			);
 			if (confirm === 'Drop Table') {
+				const safeSchema = `"${(msg.schema ?? 'public').replace(/"/g, '""')}"`;
+				const safeName = `"${msg.tableName.replace(/"/g, '""')}"`;
 				await this.queryService.executeQuery(
 					msg.dbPath,
-					`DROP TABLE IF EXISTS "${msg.tableName.replace(/"/g, '""')}"`
+					`DROP TABLE IF EXISTS ${safeSchema}.${safeName}`
 				);
 				this.panel?.webview.postMessage({ type: 'tableDropped', tableName: msg.tableName });
+				this.refreshTree();
 			}
 			break;
 		}
@@ -207,6 +243,10 @@ export class ExplorerPanelProvider {
 			const message = err instanceof Error ? err.message : String(err);
 			this.panel?.webview.postMessage({ type: 'error', message });
 		}
+	}
+
+	private looksLikeDdl(sql: string): boolean {
+		return /^\s*(CREATE|DROP|ALTER|TRUNCATE|RENAME)\b/im.test(sql);
 	}
 
 	async createDatabase(): Promise<void> {
@@ -248,7 +288,7 @@ export class ExplorerPanelProvider {
 		this.panel?.webview.postMessage({ type: 'databaseCreated', dbPath });
 	}
 
-	private getHtml(webview: vscode.Webview, initialDb?: string, initialTable?: string): string {
+	private getHtml(webview: vscode.Webview, initialDb?: string, initialTable?: string, initialSchema?: string): string {
 		const scriptUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.extensionUri, 'dist-webview', 'webview.bundle.js')
 		);
@@ -263,6 +303,7 @@ export class ExplorerPanelProvider {
 			pageSize: config.pageSize,
 			initialDb: initialDb ?? null,
 			initialTable: initialTable ?? null,
+			initialSchema: initialSchema ?? null,
 		};
 
 		return `<!DOCTYPE html>

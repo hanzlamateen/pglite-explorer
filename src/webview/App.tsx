@@ -20,6 +20,12 @@ import { EditTableDialog } from './components/EditTableDialog';
 const PAGE_SIZE = window.__PGLITE_CONFIG__?.pageSize ?? 50;
 const INITIAL_DB = window.__PGLITE_CONFIG__?.initialDb ?? null;
 const INITIAL_TABLE = window.__PGLITE_CONFIG__?.initialTable ?? null;
+const INITIAL_SCHEMA = window.__PGLITE_CONFIG__?.initialSchema ?? null;
+
+const DDL_PATTERN = /^\s*(CREATE|DROP|ALTER|TRUNCATE|RENAME)\b/i;
+function isDdl(sql: string): boolean {
+	return sql.split(';').some((stmt) => DDL_PATTERN.test(stmt));
+}
 
 export const App: React.FC = () => {
 	const [activeTab, setActiveTab] = useState<ViewTab>('data');
@@ -27,7 +33,10 @@ export const App: React.FC = () => {
 	const [tables, setTables] = useState<TableInfo[]>([]);
 	const [selectedDb, setSelectedDb] = useState<string | null>(INITIAL_DB);
 	const [selectedTable, setSelectedTable] = useState<string | null>(null);
-	const pendingTable = useRef<string | null>(INITIAL_TABLE);
+	const [selectedSchema, setSelectedSchema] = useState<string | null>(INITIAL_SCHEMA);
+	const pendingTable = useRef<{ name: string; schema: string } | null>(
+		INITIAL_TABLE ? { name: INITIAL_TABLE, schema: INITIAL_SCHEMA ?? 'public' } : null
+	);
 
 	const [columns, setColumns] = useState<ColumnMeta[]>([]);
 	const [rows, setRows] = useState<Record<string, unknown>[]>([]);
@@ -56,19 +65,20 @@ export const App: React.FC = () => {
 
 	const [error, setError] = useState<string | null>(null);
 
-	const latestState = useRef({ selectedDb, selectedTable, page, orderBy, orderDir, where, activeTab });
-	latestState.current = { selectedDb, selectedTable, page, orderBy, orderDir, where, activeTab };
+	const latestState = useRef({ selectedDb, selectedTable, selectedSchema, page, orderBy, orderDir, where, activeTab });
+	latestState.current = { selectedDb, selectedTable, selectedSchema, page, orderBy, orderDir, where, activeTab };
 
 	const sendMessageRef = useRef<(msg: import('../shared/protocol').WebviewToExtMessage) => void>();
 
 	const loadTableData = useCallback(
 		(p: number) => {
-			const { selectedDb: db, selectedTable: tbl, orderBy: ob, orderDir: od, where: w } = latestState.current;
+			const { selectedDb: db, selectedTable: tbl, selectedSchema: sch, orderBy: ob, orderDir: od, where: w } = latestState.current;
 			if (!db || !tbl) return;
 			sendMessageRef.current?.({
 				type: 'getTableData',
 				dbPath: db,
 				table: tbl,
+				schema: sch ?? 'public',
 				page: p,
 				pageSize: PAGE_SIZE,
 				orderBy: ob,
@@ -90,14 +100,22 @@ export const App: React.FC = () => {
 		}
 	}, []);
 
+	const hardRefreshTables = useCallback(() => {
+		const db = latestState.current.selectedDb;
+		if (db) {
+			sendMessageRef.current?.({ type: 'refreshTables', dbPath: db });
+		}
+	}, []);
+
 	const loadSchema = useCallback(() => {
-		const { selectedDb: db, selectedTable: tbl } = latestState.current;
+		const { selectedDb: db, selectedTable: tbl, selectedSchema: sch } = latestState.current;
 		if (!db || !tbl) return;
 		setSchemaLoading(true);
 		sendMessageRef.current?.({
 			type: 'getSchema',
 			dbPath: db,
 			table: tbl,
+			schema: sch ?? 'public',
 		});
 	}, []);
 
@@ -114,9 +132,12 @@ export const App: React.FC = () => {
 				case 'tables':
 					setTables(msg.tables);
 					if (pendingTable.current) {
-						const match = msg.tables.find((t) => t.name === pendingTable.current);
+						const pending = pendingTable.current;
+						const match = msg.tables.find((t) => t.name === pending.name && t.schema === pending.schema)
+							?? msg.tables.find((t) => t.name === pending.name);
 						if (match) {
 							setSelectedTable(match.name);
+							setSelectedSchema(match.schema);
 						}
 						pendingTable.current = null;
 					}
@@ -125,13 +146,15 @@ export const App: React.FC = () => {
 				const isSameDb = latestState.current.selectedDb === msg.dbPath;
 				if (isSameDb && msg.tableName) {
 					setSelectedTable(msg.tableName);
+					setSelectedSchema(msg.tableSchema ?? 'public');
 				} else {
 					setSelectedTable(null);
+					setSelectedSchema(null);
 					setColumns([]);
 					setRows([]);
 					setTotalCount(0);
 					if (msg.tableName) {
-						pendingTable.current = msg.tableName;
+						pendingTable.current = { name: msg.tableName, schema: msg.tableSchema ?? 'public' };
 					}
 					setSelectedDb(msg.dbPath);
 				}
@@ -143,10 +166,28 @@ export const App: React.FC = () => {
 					setTotalCount(msg.totalCount);
 					setPage(msg.page);
 					break;
-				case 'queryResult':
+				case 'queryResult': {
 					setSqlResult(msg);
 					setIsExecuting(false);
+					if (!msg.error && isDdl(lastExecutedSql.current)) {
+						refreshTableList();
+						const { selectedTable: tbl, selectedSchema: sch } = latestState.current;
+						if (tbl) {
+							const freshDb = latestState.current.selectedDb;
+							if (freshDb) {
+								sendMessageRef.current?.({
+									type: 'getTableData',
+									dbPath: freshDb,
+									table: tbl,
+									schema: sch ?? 'public',
+									page: 1,
+									pageSize: PAGE_SIZE,
+								});
+							}
+						}
+					}
 					break;
+				}
 				case 'schema':
 					setSchema(msg.schema);
 					setSchemaLoading(false);
@@ -211,6 +252,7 @@ export const App: React.FC = () => {
 		if (selectedDb) {
 			sendMessage({ type: 'listTables', dbPath: selectedDb });
 			setSelectedTable(null);
+			setSelectedSchema(null);
 			setTables([]);
 		}
 	}, [selectedDb, sendMessage]);
@@ -234,12 +276,13 @@ export const App: React.FC = () => {
 		(col: string, dir: 'ASC' | 'DESC') => {
 			setOrderBy(col);
 			setOrderDir(dir);
-			const { selectedDb: db, selectedTable: tbl, where: w } = latestState.current;
+			const { selectedDb: db, selectedTable: tbl, selectedSchema: sch, where: w } = latestState.current;
 			if (db && tbl) {
 				sendMessageRef.current?.({
 					type: 'getTableData',
 					dbPath: db,
 					table: tbl,
+					schema: sch ?? 'public',
 					page: 1,
 					pageSize: PAGE_SIZE,
 					orderBy: col,
@@ -254,12 +297,13 @@ export const App: React.FC = () => {
 	const handleFilter = useCallback(
 		(newWhere: string) => {
 			setWhere(newWhere || undefined);
-			const { selectedDb: db, selectedTable: tbl, orderBy: ob, orderDir: od } = latestState.current;
+			const { selectedDb: db, selectedTable: tbl, selectedSchema: sch, orderBy: ob, orderDir: od } = latestState.current;
 			if (db && tbl) {
 				sendMessageRef.current?.({
 					type: 'getTableData',
 					dbPath: db,
 					table: tbl,
+					schema: sch ?? 'public',
 					page: 1,
 					pageSize: PAGE_SIZE,
 					orderBy: ob,
@@ -273,12 +317,13 @@ export const App: React.FC = () => {
 
 	const handleUpdateRow = useCallback(
 		(pk: Record<string, unknown>, changes: Record<string, unknown>) => {
-			const { selectedDb: db, selectedTable: tbl } = latestState.current;
+			const { selectedDb: db, selectedTable: tbl, selectedSchema: sch } = latestState.current;
 			if (!db || !tbl) return;
 			sendMessageRef.current?.({
 				type: 'updateRow',
 				dbPath: db,
 				table: tbl,
+				schema: sch ?? 'public',
 				pk,
 				changes,
 			});
@@ -288,12 +333,13 @@ export const App: React.FC = () => {
 
 	const handleDeleteRows = useCallback(
 		(pks: Record<string, unknown>[]) => {
-			const { selectedDb: db, selectedTable: tbl } = latestState.current;
+			const { selectedDb: db, selectedTable: tbl, selectedSchema: sch } = latestState.current;
 			if (!db || !tbl) return;
 			sendMessageRef.current?.({
 				type: 'deleteRows',
 				dbPath: db,
 				table: tbl,
+				schema: sch ?? 'public',
 				pks,
 			});
 		},
@@ -302,12 +348,13 @@ export const App: React.FC = () => {
 
 	const handleAddRow = useCallback(
 		(row: Record<string, unknown>) => {
-			const { selectedDb: db, selectedTable: tbl } = latestState.current;
+			const { selectedDb: db, selectedTable: tbl, selectedSchema: sch } = latestState.current;
 			if (!db || !tbl) return;
 			sendMessageRef.current?.({
 				type: 'insertRow',
 				dbPath: db,
 				table: tbl,
+				schema: sch ?? 'public',
 				row,
 			});
 			setShowAddRow(false);
@@ -315,10 +362,13 @@ export const App: React.FC = () => {
 		[]
 	);
 
+	const lastExecutedSql = useRef<string>('');
+
 	const handleExecuteQuery = useCallback(
 		(sqlText: string) => {
 			const { selectedDb: db } = latestState.current;
 			if (!db) return;
+			lastExecutedSql.current = sqlText;
 			setIsExecuting(true);
 			setSqlResult(null);
 			sendMessageRef.current?.({
@@ -332,12 +382,13 @@ export const App: React.FC = () => {
 
 	const handleExport = useCallback(
 		(format: 'csv' | 'json') => {
-			const { selectedDb: db, selectedTable: tbl } = latestState.current;
+			const { selectedDb: db, selectedTable: tbl, selectedSchema: sch } = latestState.current;
 			if (!db || !tbl) return;
 			sendMessageRef.current?.({
 				type: 'exportData',
 				dbPath: db,
 				table: tbl,
+				schema: sch ?? 'public',
 				format,
 			});
 		},
@@ -368,8 +419,9 @@ export const App: React.FC = () => {
 	const editListenerRef = useRef<((e: MessageEvent) => void) | null>(null);
 
 	const handleEditTable = useCallback(
-		(tableName: string) => {
+		(tableName: string, tableSchema?: string) => {
 			const db = latestState.current.selectedDb;
+			const sch = tableSchema ?? latestState.current.selectedSchema ?? 'public';
 			if (!db) return;
 
 			if (editListenerRef.current) {
@@ -383,7 +435,7 @@ export const App: React.FC = () => {
 				setShowEditTable(true);
 			} else {
 				setSchemaLoading(true);
-				sendMessageRef.current?.({ type: 'getSchema', dbPath: db, table: tableName });
+				sendMessageRef.current?.({ type: 'getSchema', dbPath: db, table: tableName, schema: sch });
 				const listener = (event: MessageEvent) => {
 					const data = event.data as ExtToWebviewMessage;
 					if (data.type === 'schema' && data.schema.tableName === tableName) {
@@ -411,10 +463,11 @@ export const App: React.FC = () => {
 	);
 
 	const handleDropTable = useCallback(
-		(tableName: string) => {
+		(tableName: string, tableSchema?: string) => {
 			const db = latestState.current.selectedDb;
+			const sch = tableSchema ?? latestState.current.selectedSchema ?? 'public';
 			if (!db) return;
-			sendMessageRef.current?.({ type: 'dropTable', dbPath: db, tableName });
+			sendMessageRef.current?.({ type: 'dropTable', dbPath: db, tableName, schema: sch });
 		},
 		[]
 	);
@@ -434,10 +487,15 @@ export const App: React.FC = () => {
 					tables={tables}
 					selectedDb={selectedDb}
 					selectedTable={selectedTable}
+					selectedSchema={selectedSchema}
 					onSelectDb={setSelectedDb}
-					onSelectTable={setSelectedTable}
+					onSelectTable={(name, tableSchema) => {
+						setSelectedTable(name);
+						setSelectedSchema(tableSchema);
+					}}
 					onCreateDatabase={handleCreateDatabase}
 					onCreateTable={() => setShowCreateTable(true)}
+					onRefreshTables={hardRefreshTables}
 					onEditTable={handleEditTable}
 					onDropTable={handleDropTable}
 				/>
@@ -489,7 +547,7 @@ export const App: React.FC = () => {
 						<SchemaViewer
 							schema={schema}
 							loading={schemaLoading}
-							onEditSchema={selectedTable ? () => handleEditTable(selectedTable) : undefined}
+							onEditSchema={selectedTable ? () => handleEditTable(selectedTable, selectedSchema ?? undefined) : undefined}
 						/>
 					)}
 				</div>

@@ -21,15 +21,23 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	const treeProvider = new DatabaseTreeProvider(discovery, queryService);
+	panelProvider.setTreeProvider(treeProvider);
+
 	const treeView = vscode.window.createTreeView('pgliteExplorerDatabases', {
 		treeDataProvider: treeProvider,
 		showCollapseAll: true,
 	});
 	context.subscriptions.push(treeView);
 
-	registerCommands(context, panelProvider, discovery, treeProvider);
+	registerCommands(context, panelProvider, discovery, treeProvider, connectionManager);
 
 	context.subscriptions.push(discovery);
+
+	context.subscriptions.push(
+		discovery.onDidChange(() => {
+			connectionManager.reconnectAll().catch(() => {});
+		})
+	);
 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {

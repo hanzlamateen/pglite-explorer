@@ -38,19 +38,20 @@ export class QueryService {
 		pageSize: number,
 		orderBy?: string,
 		orderDir: 'ASC' | 'DESC' = 'ASC',
-		where?: string
+		where?: string,
+		schema: string = 'public'
 	): Promise<{
 		columns: ColumnMeta[];
 		rows: Record<string, unknown>[];
 		totalCount: number;
 	}> {
 		const db = await this.connectionManager.getConnection(dbPath);
-		const safeTable = this.escapeIdentifier(table);
+		const qualifiedTable = this.qualifiedTable(schema, table);
 
-		const columns = await this.getColumns(db, table);
+		const columns = await this.getColumns(db, table, schema);
 
-		let countSql = `SELECT COUNT(*) as count FROM ${safeTable}`;
-		let dataSql = `SELECT * FROM ${safeTable}`;
+		let countSql = `SELECT COUNT(*) as count FROM ${qualifiedTable}`;
+		let dataSql = `SELECT * FROM ${qualifiedTable}`;
 
 		if (where && where.trim()) {
 			countSql += ` WHERE ${where}`;
@@ -75,12 +76,12 @@ export class QueryService {
 		};
 	}
 
-	async getSchema(dbPath: string, table: string): Promise<TableSchema> {
+	async getSchema(dbPath: string, table: string, schema: string = 'public'): Promise<TableSchema> {
 		const db = await this.connectionManager.getConnection(dbPath);
 
-		const columns = await this.getColumns(db, table);
-		const constraints = await this.getConstraints(db, table);
-		const indexes = await this.getIndexes(db, table);
+		const columns = await this.getColumns(db, table, schema);
+		const constraints = await this.getConstraints(db, table, schema);
+		const indexes = await this.getIndexes(db, table, schema);
 
 		return { tableName: table, columns, constraints, indexes };
 	}
@@ -88,10 +89,11 @@ export class QueryService {
 	async insertRow(
 		dbPath: string,
 		table: string,
-		row: Record<string, unknown>
+		row: Record<string, unknown>,
+		schema: string = 'public'
 	): Promise<void> {
 		const db = await this.connectionManager.getConnection(dbPath);
-		const safeTable = this.escapeIdentifier(table);
+		const safeTable = this.qualifiedTable(schema, table);
 		const entries = Object.entries(row).filter(([, v]) => v !== undefined);
 		const cols = entries.map(([k]) => this.escapeIdentifier(k)).join(', ');
 		const placeholders = entries.map((_, i) => `$${i + 1}`).join(', ');
@@ -104,10 +106,11 @@ export class QueryService {
 		dbPath: string,
 		table: string,
 		pk: Record<string, unknown>,
-		changes: Record<string, unknown>
+		changes: Record<string, unknown>,
+		schema: string = 'public'
 	): Promise<void> {
 		const db = await this.connectionManager.getConnection(dbPath);
-		const safeTable = this.escapeIdentifier(table);
+		const safeTable = this.qualifiedTable(schema, table);
 
 		const changeEntries = Object.entries(changes);
 		const pkEntries = Object.entries(pk);
@@ -134,10 +137,11 @@ export class QueryService {
 	async deleteRows(
 		dbPath: string,
 		table: string,
-		pks: Record<string, unknown>[]
+		pks: Record<string, unknown>[],
+		schema: string = 'public'
 	): Promise<number> {
 		const db = await this.connectionManager.getConnection(dbPath);
-		const safeTable = this.escapeIdentifier(table);
+		const safeTable = this.qualifiedTable(schema, table);
 		let deleted = 0;
 
 		for (const pk of pks) {
@@ -203,10 +207,11 @@ export class QueryService {
 	async exportData(
 		dbPath: string,
 		table: string,
-		format: 'csv' | 'json'
+		format: 'csv' | 'json',
+		schema: string = 'public'
 	): Promise<{ data: string; fileName: string }> {
 		const db = await this.connectionManager.getConnection(dbPath);
-		const safeTable = this.escapeIdentifier(table);
+		const safeTable = this.qualifiedTable(schema, table);
 		const result = await db.query(`SELECT * FROM ${safeTable}`);
 		const rows = result.rows as Record<string, unknown>[];
 
@@ -246,7 +251,7 @@ export class QueryService {
 		};
 	}
 
-	private async getColumns(db: PGlite, table: string): Promise<ColumnMeta[]> {
+	private async getColumns(db: PGlite, table: string, schema: string = 'public'): Promise<ColumnMeta[]> {
 		const colResult = await db.query<{
 			column_name: string;
 			data_type: string;
@@ -256,9 +261,9 @@ export class QueryService {
 		}>(`
 			SELECT column_name, data_type, is_nullable, column_default, ordinal_position
 			FROM information_schema.columns
-			WHERE table_schema = 'public' AND table_name = $1
+			WHERE table_schema = $1 AND table_name = $2
 			ORDER BY ordinal_position
-		`, [table]);
+		`, [schema, table]);
 
 		const pkResult = await db.query<{ column_name: string }>(`
 			SELECT kcu.column_name
@@ -267,9 +272,9 @@ export class QueryService {
 				ON tc.constraint_name = kcu.constraint_name
 				AND tc.table_schema = kcu.table_schema
 			WHERE tc.constraint_type = 'PRIMARY KEY'
-				AND tc.table_schema = 'public'
-				AND tc.table_name = $1
-		`, [table]);
+				AND tc.table_schema = $1
+				AND tc.table_name = $2
+		`, [schema, table]);
 
 		const pkColumns = new Set(pkResult.rows.map((r) => r.column_name));
 
@@ -283,7 +288,7 @@ export class QueryService {
 		}));
 	}
 
-	private async getConstraints(db: PGlite, table: string): Promise<ConstraintInfo[]> {
+	private async getConstraints(db: PGlite, table: string, schema: string = 'public'): Promise<ConstraintInfo[]> {
 		const result = await db.query<{
 			constraint_name: string;
 			constraint_type: string;
@@ -294,9 +299,9 @@ export class QueryService {
 			LEFT JOIN information_schema.key_column_usage kcu
 				ON tc.constraint_name = kcu.constraint_name
 				AND tc.table_schema = kcu.table_schema
-			WHERE tc.table_schema = 'public' AND tc.table_name = $1
+			WHERE tc.table_schema = $1 AND tc.table_name = $2
 			ORDER BY tc.constraint_name, kcu.ordinal_position
-		`, [table]);
+		`, [schema, table]);
 
 		const grouped = new Map<string, { type: string; columns: string[] }>();
 		for (const row of result.rows) {
@@ -319,15 +324,15 @@ export class QueryService {
 		}));
 	}
 
-	private async getIndexes(db: PGlite, table: string): Promise<IndexInfo[]> {
+	private async getIndexes(db: PGlite, table: string, schema: string = 'public'): Promise<IndexInfo[]> {
 		const result = await db.query<{
 			indexname: string;
 			indexdef: string;
 		}>(`
 			SELECT indexname, indexdef
 			FROM pg_indexes
-			WHERE schemaname = 'public' AND tablename = $1
-		`, [table]);
+			WHERE schemaname = $1 AND tablename = $2
+		`, [schema, table]);
 
 		return result.rows.map((row) => {
 			const isUnique = row.indexdef.toUpperCase().includes('UNIQUE');
@@ -347,5 +352,9 @@ export class QueryService {
 
 	private escapeIdentifier(name: string): string {
 		return `"${name.replace(/"/g, '""')}"`;
+	}
+
+	private qualifiedTable(schema: string, table: string): string {
+		return `${this.escapeIdentifier(schema)}.${this.escapeIdentifier(table)}`;
 	}
 }

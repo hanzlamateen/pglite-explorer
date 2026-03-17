@@ -65,7 +65,7 @@ export type ExtToWebviewMessage =
 	| { type: 'rowInserted'; table: string }
 	| { type: 'rowUpdated'; table: string }
 	| { type: 'rowsDeleted'; table: string; count: number }
-	| { type: 'selectDatabase'; dbPath: string; tableName?: string }
+	| { type: 'selectDatabase'; dbPath: string; tableName?: string; tableSchema?: string }
 	| { type: 'databaseCreated'; dbPath: string }
 	| { type: 'tableCreated'; tableName: string }
 	| { type: 'tableAltered'; tableName: string }
@@ -79,26 +79,29 @@ export type WebviewToExtMessage =
 		type: 'getTableData';
 		dbPath: string;
 		table: string;
+		schema: string;
 		page: number;
 		pageSize: number;
 		orderBy?: string;
 		orderDir?: 'ASC' | 'DESC';
 		where?: string;
 	}
-	| { type: 'insertRow'; dbPath: string; table: string; row: Record<string, unknown> }
+	| { type: 'insertRow'; dbPath: string; table: string; schema: string; row: Record<string, unknown> }
 	| {
 		type: 'updateRow';
 		dbPath: string;
 		table: string;
+		schema: string;
 		pk: Record<string, unknown>;
 		changes: Record<string, unknown>;
 	}
-	| { type: 'deleteRows'; dbPath: string; table: string; pks: Record<string, unknown>[] }
+	| { type: 'deleteRows'; dbPath: string; table: string; schema: string; pks: Record<string, unknown>[] }
 	| { type: 'executeQuery'; dbPath: string; sql: string }
-	| { type: 'getSchema'; dbPath: string; table: string }
-	| { type: 'exportData'; dbPath: string; table: string; format: 'csv' | 'json' }
+	| { type: 'getSchema'; dbPath: string; table: string; schema: string }
+	| { type: 'exportData'; dbPath: string; table: string; schema: string; format: 'csv' | 'json' }
 	| { type: 'refreshDatabases' }
+	| { type: 'refreshTables'; dbPath: string }
 	| { type: 'createDatabase' }
 	| { type: 'createTable'; dbPath: string; sql: string }
 	| { type: 'alterTable'; dbPath: string; sql: string; tableName: string }
-	| { type: 'dropTable'; dbPath: string; tableName: string };
+	| { type: 'dropTable'; dbPath: string; tableName: string; schema: string };

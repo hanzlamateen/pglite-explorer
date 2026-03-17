@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ExplorerPanelProvider } from './webview/provider';
 import { DatabaseDiscovery } from './database/discovery';
+import { ConnectionManager } from './database/connection';
 import { DatabaseTreeProvider } from './views/databaseTree';
 import { CONFIG_SECTION } from './config';
 
@@ -9,7 +10,8 @@ export function registerCommands(
 	context: vscode.ExtensionContext,
 	panelProvider: ExplorerPanelProvider,
 	discovery: DatabaseDiscovery,
-	treeProvider: DatabaseTreeProvider
+	treeProvider: DatabaseTreeProvider,
+	connectionManager: ConnectionManager
 ): void {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('pgliteExplorer.open', (dbPath?: string) => {
@@ -18,13 +20,14 @@ export function registerCommands(
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('pgliteExplorer.openTable', (dbPath: string, tableName: string) => {
-			panelProvider.open(dbPath, tableName);
+		vscode.commands.registerCommand('pgliteExplorer.openTable', (dbPath: string, tableName: string, tableSchema?: string) => {
+			panelProvider.open(dbPath, tableName, tableSchema);
 		})
 	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('pgliteExplorer.refresh', async () => {
+			await connectionManager.reconnectAll();
 			await discovery.discoverAll();
 			treeProvider.refresh();
 			vscode.window.showInformationMessage(

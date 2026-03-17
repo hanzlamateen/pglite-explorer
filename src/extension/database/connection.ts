@@ -39,6 +39,18 @@ export class ConnectionManager {
 		}
 	}
 
+	async reconnect(dbPath: string): Promise<PGlite> {
+		await this.closeConnection(dbPath).catch(() => {});
+		return this.getConnection(dbPath);
+	}
+
+	async reconnectAll(): Promise<void> {
+		const paths = Array.from(this.connections.keys());
+		for (const p of paths) {
+			await this.reconnect(p).catch(() => {});
+		}
+	}
+
 	async closeAll(): Promise<void> {
 		const closePromises = Array.from(this.connections.entries()).map(
 			async ([dbPath, conn]) => {
