@@ -15,3 +15,5 @@ tsconfig.json
 **/*.tsx
 **/*.map
 *.vsix
+docs/**
+!docs/logo.png

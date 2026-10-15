@@ -2,7 +2,7 @@
 
 Browse and manage [PGlite](https://pglite.dev/) databases directly inside VS Code and Cursor. A visual database GUI that auto-detects PGlite databases in your workspace and lets you perform CRUD operations, run SQL queries, and inspect schemas -- all without leaving your editor.
 
-<!-- ![PGlite Explorer Screenshot](docs/screenshot.png) -->
+![PGlite Explorer: browse a table, filter it, run SQL and inspect the schema](docs/demo.gif)
 
 ## Features
 
@@ -125,6 +125,8 @@ Click the **x icon** next to a table in the sidebar. A confirmation dialog appea
 - **Add**: Click "+ Add Row" and fill in the form
 - **Delete**: Check rows and click "Delete Selected"
 
+![The customers table in the data grid, with the filter bar and CSV and JSON export](docs/screenshot.png)
+
 ### Running SQL Queries
 
 Switch to the **SQL Editor** tab to write and execute custom queries:
@@ -139,6 +141,8 @@ ORDER BY order_count DESC;
 
 Results appear in a table below the editor with execution time.
 
+![A grouped query and its results in the SQL editor](docs/sql-editor.png)
+
 ### Inspecting Schema
 
 Switch to the **Schema** tab to view:
@@ -147,6 +151,8 @@ Switch to the **Schema** tab to view:
 - Primary key indicators
 - Constraints (PRIMARY KEY, UNIQUE, FOREIGN KEY, CHECK)
 - Indexes with their definitions
+
+![Columns, constraints and indexes for the customers table](docs/schema.png)
 
 ## Configuration
 
